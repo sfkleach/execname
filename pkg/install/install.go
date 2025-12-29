@@ -58,10 +58,14 @@ func Run(opts Options) error {
 	} else {
 		fmt.Printf("Fetching latest release from %s/%s...\n", owner, repo)
 		release, err = github.GetLatestRelease(owner, repo, opts.IncludePrereleases)
-		version = release.TagName
 	}
 	if err != nil {
 		return err
+	}
+
+	// Set version from release tag if we fetched the latest.
+	if version == "" {
+		version = release.TagName
 	}
 
 	// Check if already installed.
