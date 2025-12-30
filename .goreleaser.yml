@@ -13,17 +13,22 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/sfkleach/execman/pkg/commands.Version={{.Version}}
-      - -X github.com/sfkleach/execman/pkg/commands.Source=https://github.com/sfkleach/execman
+      - -X github.com/sfkleach/execman/pkg/version.Version={{.Version}}
+      - -X github.com/sfkleach/execman/pkg/version.GitCommit={{.Commit}}
+      - -X github.com/sfkleach/execman/pkg/version.BuildDate={{.Date}}
 
 archives:
   - id: execman-archive
     format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
     name_template: "execman_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
