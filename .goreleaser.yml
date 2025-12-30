@@ -28,9 +28,9 @@ builds:
 archives:
   - id: execman-archive
     name_template: "execman_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        format: zip
+    builds:
+      - execman
+    rlcp: true
     files:
       - README.md
       - LICENSE*
