@@ -5,8 +5,10 @@ import (
 	"os"
 
 	"github.com/sfkleach/execman/pkg/check"
+	"github.com/sfkleach/execman/pkg/forget"
 	"github.com/sfkleach/execman/pkg/install"
 	"github.com/sfkleach/execman/pkg/list"
+	"github.com/sfkleach/execman/pkg/remove"
 	"github.com/sfkleach/execman/pkg/update"
 	"github.com/sfkleach/execman/pkg/version"
 	"github.com/spf13/cobra"
@@ -71,15 +73,6 @@ var infoCmd = &cobra.Command{
 	},
 }
 
-var removeCmd = &cobra.Command{
-	Use:   "remove",
-	Short: "Remove an executable (TBD)",
-	Long:  `Remove an executable (TBD)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("remove subcommand - TBD")
-	},
-}
-
 var adoptCmd = &cobra.Command{
 	Use:   "adopt",
 	Short: "Adopt an existing executable (TBD)",
@@ -103,7 +96,8 @@ func init() {
 	rootCmd.AddCommand(list.NewListCommand())
 	rootCmd.AddCommand(check.NewCheckCommand())
 	rootCmd.AddCommand(update.NewUpdateCommand())
-	rootCmd.AddCommand(removeCmd)
+	rootCmd.AddCommand(remove.NewRemoveCommand())
+	rootCmd.AddCommand(forget.NewForgetCommand())
 	rootCmd.AddCommand(adoptCmd)
 }
 

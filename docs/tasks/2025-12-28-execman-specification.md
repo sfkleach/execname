@@ -274,26 +274,47 @@ execman update --all --yes
 - **Permission denied**: Explain issue, suggest remediation
 - **Replacement failed**: Rollback if possible, preserve download
 
-## Part 6: Remove Command
+## Part 6: Remove and Forget Commands
+
+### Remove Command
 
 ```bash
 execman remove nutmeg-run
 execman remove nutmeg-run --yes
 ```
 
-### Interactive Flow
+#### Interactive Flow
 
 1. **Confirm removal**: Show executable details, ask to proceed
 2. **Remove executable**: Delete the file
 3. **Update registry**: Remove entry from registry
 4. **Report**: Show success message
 
-### Options
+#### Options
 
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--yes` | `-y` | Skip confirmation prompt |
-| `--keep-file` | | Remove from registry but keep executable |
+
+### Forget Command
+
+```bash
+execman forget nutmeg-run
+execman forget nutmeg-run --yes
+```
+
+#### Interactive Flow
+
+1. **Confirm forgetting**: Show executable details, ask to proceed
+2. **Update registry**: Remove entry from registry
+3. **Keep file**: Leave the executable file on disk
+4. **Report**: Show success message
+
+#### Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--yes` | `-y` | Skip confirmation prompt |
 
 ## Part 7: Info Command
 
