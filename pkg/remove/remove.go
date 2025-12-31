@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sfkleach/execman/pkg/registry"
+	"github.com/sfkleach/execman/pkg/symlink"
 	"github.com/spf13/cobra"
 )
 
@@ -53,12 +54,40 @@ func Remove(opts Options) error {
 		return fmt.Errorf("executable %q is not managed by execman", opts.Name)
 	}
 
+	// Check for symlink.
+	effectivePath := exec.Path
+	var symlinkInfo *symlink.Info
+	var symlinkAction symlink.SymlinkAction
+
+	symlinkInfo, err = symlink.Check(exec.Path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check path: %w", err)
+	}
+
+	if symlinkInfo != nil && symlinkInfo.IsSymlink {
+		if opts.Yes {
+			// Non-interactive mode with symlink - error out.
+			return symlink.ErrorNonInteractive(symlinkInfo.Path, symlinkInfo.Target)
+		}
+		// Interactive mode - ask user.
+		symlinkAction = symlink.PromptAction(symlinkInfo.Path, symlinkInfo.Target)
+		if symlinkAction == symlink.ActionCancel {
+			fmt.Println("Removal cancelled.")
+			return nil
+		}
+		effectivePath = symlink.ResolveTarget(symlinkInfo, symlinkAction)
+	}
+
 	// Show details and confirm.
 	if !opts.Yes {
 		fmt.Printf("Remove %s?\n\n", opts.Name)
 		fmt.Printf("  Source:       %s\n", exec.Source)
 		fmt.Printf("  Version:      %s\n", exec.Version)
 		fmt.Printf("  Path:         %s\n", exec.Path)
+		if symlinkInfo != nil && symlinkInfo.IsSymlink {
+			fmt.Printf("  Symlink to:   %s\n", symlinkInfo.Target)
+			fmt.Printf("  Will remove:  %s\n", effectivePath)
+		}
 		fmt.Printf("  Installed:    %s\n", exec.InstalledAt.Format("2006-01-02"))
 		fmt.Println()
 		fmt.Print("This will delete the executable file and remove it from management. Continue? [y/N]: ")
@@ -74,11 +103,18 @@ func Remove(opts Options) error {
 	}
 
 	// Remove file.
-	if err := os.Remove(exec.Path); err != nil {
+	if err := os.Remove(effectivePath); err != nil {
 		if os.IsNotExist(err) {
-			fmt.Printf("Warning: executable file not found at %s\n", exec.Path)
+			fmt.Printf("Warning: executable file not found at %s\n", effectivePath)
 		} else {
 			return fmt.Errorf("failed to remove executable: %w", err)
+		}
+	}
+
+	// If we removed the target but not the symlink, also remove the symlink.
+	if symlinkInfo != nil && symlinkInfo.IsSymlink && symlinkAction == symlink.ActionReplaceTarget {
+		if err := os.Remove(symlinkInfo.Path); err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Warning: failed to remove symlink at %s: %v\n", symlinkInfo.Path, err)
 		}
 	}
 

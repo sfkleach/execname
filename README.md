@@ -149,7 +149,6 @@ execman [command] --help
 - `update` - Update executables to latest versions
 - `remove` - Remove an executable and delete the file
 - `forget` - Stop tracking an executable but keep the file
-- `adopt` - Adopt an existing executable (TBD)
 
 ## Configuration
 
@@ -214,8 +213,30 @@ execman/
 │   ├── list/                # List command implementation
 │   ├── registry/            # Registry management
 │   ├── remove/              # Remove command implementation
+│   ├── symlink/             # Symlink detection and handling
 │   ├── update/              # Update command implementation
 │   └── version/             # Version information
 ├── go.mod
 └── README.md
 ```
+
+## Symlink Handling
+
+When updating or removing an executable that is a symbolic link, execman will prompt you to choose how to handle it:
+
+```
+Note: /usr/local/bin/myapp is a symlink to /opt/myapp/v1.2.3/myapp
+
+How would you like to proceed?
+  [1] Replace the symlink target (/opt/myapp/v1.2.3/myapp)
+  [2] Replace the symlink itself (/usr/local/bin/myapp)
+  [3] Cancel
+
+Choice [1/2/3]:
+```
+
+- **Option 1**: Operates on the target file that the symlink points to
+- **Option 2**: Removes the symlink and operates on that location directly
+- **Option 3**: Cancels the operation
+
+In non-interactive mode (`--yes`), symlink operations will fail with an error message instructing you to run without `--yes` to choose how to handle the symlink.

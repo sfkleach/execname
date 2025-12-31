@@ -400,7 +400,7 @@ execman forget nutmeg-run --yes
 
 ## Part 7: Symlink Handling
 
-When execman encounters a symlink (during update, remove, or adopt):
+When execman encounters a symlink (during update or remove operations):
 
 ### Interactive Mode
 
@@ -420,10 +420,15 @@ Choice [1/2/3]:
 ```
 Error: /usr/local/bin/myapp is a symlink to /opt/myapp/v1.2.3/myapp
        Cannot proceed in non-interactive mode.
-       Run without --yes to choose how to handle symlinks.
+       Run without --yes to choose how to handle symlinks
 ```
 
 Exit with non-zero status code.
+
+### Behavior Notes
+
+- For **update**: choosing option 1 replaces the target file, option 2 removes the symlink and installs the executable directly
+- For **remove**: choosing option 1 removes the target file (and cleans up the broken symlink), option 2 removes only the symlink
 
 ## Part 8: Version Command
 

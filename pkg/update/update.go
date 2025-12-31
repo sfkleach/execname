@@ -13,6 +13,7 @@ import (
 	"github.com/sfkleach/execman/pkg/config"
 	"github.com/sfkleach/execman/pkg/github"
 	"github.com/sfkleach/execman/pkg/registry"
+	"github.com/sfkleach/execman/pkg/symlink"
 	"github.com/spf13/cobra"
 )
 
@@ -127,10 +128,34 @@ func updateOne(reg *registry.Registry, opts Options) (bool, error) {
 		return false, fmt.Errorf("executable %q is not managed by execman", opts.Name)
 	}
 
-	// Check if executable file exists.
+	// Check if executable file exists and if it's a symlink.
 	executableMissing := false
+	var symlinkInfo *symlink.Info
+	var symlinkAction symlink.SymlinkAction
+	effectivePath := exec.Path
+
 	if _, err := os.Stat(exec.Path); os.IsNotExist(err) {
 		executableMissing = true
+	} else {
+		// Check for symlink.
+		symlinkInfo, err = symlink.Check(exec.Path)
+		if err != nil {
+			return false, fmt.Errorf("failed to check path: %w", err)
+		}
+
+		if symlinkInfo.IsSymlink {
+			if opts.Yes {
+				// Non-interactive mode with symlink - error out.
+				return false, symlink.ErrorNonInteractive(symlinkInfo.Path, symlinkInfo.Target)
+			}
+			// Interactive mode - ask user.
+			symlinkAction = symlink.PromptAction(symlinkInfo.Path, symlinkInfo.Target)
+			if symlinkAction == symlink.ActionCancel {
+				fmt.Println("Update cancelled.")
+				return false, nil
+			}
+			effectivePath = symlink.ResolveTarget(symlinkInfo, symlinkAction)
+		}
 	}
 
 	// Parse source.
@@ -257,37 +282,40 @@ func updateOne(reg *registry.Registry, opts Options) (bool, error) {
 	}
 
 	// Check permissions on target.
-	targetDir := filepath.Dir(exec.Path)
+	targetDir := filepath.Dir(effectivePath)
 	if err := os.MkdirAll(targetDir, 0750); err != nil {
 		return false, fmt.Errorf("failed to create target directory: %w", err)
 	}
 
 	// Create backup if requested.
 	if createBackup {
-		backupPath := exec.Path + ".backup"
+		backupPath := effectivePath + ".backup"
 		fmt.Printf("Creating backup at %s...\n", backupPath)
-		if err := copyFile(exec.Path, backupPath); err != nil {
+		if err := copyFile(effectivePath, backupPath); err != nil {
 			return false, fmt.Errorf("failed to create backup: %w", err)
 		}
 	}
 
 	// Replace executable.
 	fmt.Println("Installing...")
-	if err := os.Remove(exec.Path); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(effectivePath); err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("failed to remove old executable: %w", err)
 	}
 
-	if err := copyFile(binaryPath, exec.Path); err != nil {
+	if err := copyFile(binaryPath, effectivePath); err != nil {
 		return false, fmt.Errorf("failed to install new executable: %w", err)
 	}
 
 	// Set executable permissions.
 	// #nosec G302 -- Executables need 0755 permissions
-	if err := os.Chmod(exec.Path, 0755); err != nil {
+	if err := os.Chmod(effectivePath, 0755); err != nil {
 		return false, fmt.Errorf("failed to set executable permissions: %w", err)
 	}
 
-	// Update registry.
+	// Update registry - if we replaced the symlink itself, update the path.
+	if symlinkInfo != nil && symlinkInfo.IsSymlink && symlinkAction == symlink.ActionReplaceSymlink {
+		exec.Path = effectivePath
+	}
 	exec.Version = latestVersion
 	exec.Checksum = checksum
 	exec.InstalledAt = time.Now()
