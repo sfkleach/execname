@@ -87,7 +87,8 @@ func Run(opts Options) error {
 		return updateAll(reg, opts)
 	}
 
-	return updateOne(reg, opts)
+	_, err = updateOne(reg, opts)
+	return err
 }
 
 func updateAll(reg *registry.Registry, opts Options) error {
@@ -97,42 +98,46 @@ func updateAll(reg *registry.Registry, opts Options) error {
 		return nil
 	}
 
-	successCount := 0
+	updatedCount := 0
+	upToDateCount := 0
 	failCount := 0
 
 	for _, name := range names {
 		fmt.Printf("\nUpdating %s...\n", name)
 		opts.Name = name
-		if err := updateOne(reg, opts); err != nil {
+		updated, err := updateOne(reg, opts)
+		if err != nil {
 			fmt.Printf("Failed to update %s: %v\n", name, err)
 			failCount++
+		} else if updated {
+			updatedCount++
 		} else {
-			successCount++
+			upToDateCount++
 		}
 	}
 
-	fmt.Printf("\n%d updated, %d failed.\n", successCount, failCount)
+	fmt.Printf("\n%d updated, %d already up to date, %d failed.\n", updatedCount, upToDateCount, failCount)
 	return nil
 }
 
-func updateOne(reg *registry.Registry, opts Options) error {
+func updateOne(reg *registry.Registry, opts Options) (bool, error) {
 	// Get current installation.
 	exec, ok := reg.Get(opts.Name)
 	if !ok {
-		return fmt.Errorf("executable %q is not managed by execman", opts.Name)
+		return false, fmt.Errorf("executable %q is not managed by execman", opts.Name)
 	}
 
 	// Parse source.
 	owner, repo, _, err := github.ParseSource(exec.Source)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// Fetch latest release.
 	fmt.Printf("Checking for updates from %s/%s...\n", owner, repo)
 	release, err := github.GetLatestRelease(owner, repo, opts.IncludePrereleases)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	latestVersion := release.TagName
@@ -140,7 +145,7 @@ func updateOne(reg *registry.Registry, opts Options) error {
 	// Check if update is needed.
 	if exec.Version == latestVersion {
 		fmt.Printf("%s is already up to date (%s).\n", opts.Name, exec.Version)
-		return nil
+		return false, nil
 	}
 
 	// Show comparison.
@@ -156,7 +161,7 @@ func updateOne(reg *registry.Registry, opts Options) error {
 		response = strings.ToLower(strings.TrimSpace(response))
 		if response != "y" && response != "yes" {
 			fmt.Println("Update cancelled.")
-			return nil
+			return false, nil
 		}
 	}
 
@@ -173,13 +178,13 @@ func updateOne(reg *registry.Registry, opts Options) error {
 	// Find matching asset.
 	asset, err := github.FindAsset(release.Assets, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// Create temporary directory for download.
 	tmpDir, err := os.MkdirTemp("", "execman-update-*")
 	if err != nil {
-		return fmt.Errorf("failed to create temp directory: %w", err)
+		return false, fmt.Errorf("failed to create temp directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
@@ -187,26 +192,26 @@ func updateOne(reg *registry.Registry, opts Options) error {
 	archivePath := filepath.Join(tmpDir, asset.Name)
 	fmt.Printf("Downloading %s...\n", asset.Name)
 	if err := github.DownloadAsset(asset, archivePath); err != nil {
-		return err
+		return false, err
 	}
 
 	// Extract binary to temp location.
 	binaryPath := filepath.Join(tmpDir, "binary")
 	fmt.Println("Extracting...")
 	if err := archive.ExtractBinary(archivePath, binaryPath); err != nil {
-		return err
+		return false, err
 	}
 
 	// Calculate checksum.
 	checksum, err := archive.CalculateChecksum(binaryPath)
 	if err != nil {
-		return fmt.Errorf("failed to calculate checksum: %w", err)
+		return false, fmt.Errorf("failed to calculate checksum: %w", err)
 	}
 
 	// Check permissions on target.
 	targetDir := filepath.Dir(exec.Path)
 	if err := os.MkdirAll(targetDir, 0750); err != nil {
-		return fmt.Errorf("failed to create target directory: %w", err)
+		return false, fmt.Errorf("failed to create target directory: %w", err)
 	}
 
 	// Create backup if requested.
@@ -214,24 +219,24 @@ func updateOne(reg *registry.Registry, opts Options) error {
 		backupPath := exec.Path + ".backup"
 		fmt.Printf("Creating backup at %s...\n", backupPath)
 		if err := copyFile(exec.Path, backupPath); err != nil {
-			return fmt.Errorf("failed to create backup: %w", err)
+			return false, fmt.Errorf("failed to create backup: %w", err)
 		}
 	}
 
 	// Replace executable.
 	fmt.Println("Installing...")
 	if err := os.Remove(exec.Path); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove old executable: %w", err)
+		return false, fmt.Errorf("failed to remove old executable: %w", err)
 	}
 
 	if err := copyFile(binaryPath, exec.Path); err != nil {
-		return fmt.Errorf("failed to install new executable: %w", err)
+		return false, fmt.Errorf("failed to install new executable: %w", err)
 	}
 
 	// Set executable permissions.
 	// #nosec G302 -- Executables need 0755 permissions
 	if err := os.Chmod(exec.Path, 0755); err != nil {
-		return fmt.Errorf("failed to set executable permissions: %w", err)
+		return false, fmt.Errorf("failed to set executable permissions: %w", err)
 	}
 
 	// Update registry.
@@ -241,7 +246,7 @@ func updateOne(reg *registry.Registry, opts Options) error {
 
 	reg.Add(opts.Name, exec)
 	if err := reg.Save(); err != nil {
-		return fmt.Errorf("failed to update registry: %w", err)
+		return false, fmt.Errorf("failed to update registry: %w", err)
 	}
 
 	fmt.Printf("\nSuccessfully updated %s to %s\n", opts.Name, latestVersion)
@@ -264,7 +269,7 @@ func updateOne(reg *registry.Registry, opts Options) error {
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
 // copyFile copies a file from src to dst.
