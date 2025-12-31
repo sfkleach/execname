@@ -49,6 +49,17 @@ execman install github.com/owner/repo --yes
 ```bash
 # Show all managed executables
 execman list
+execman ls
+
+# Show specific executable
+execman list myapp
+
+# Show detailed information
+execman list --long
+execman ls -l
+
+# Show specific executable with details
+execman list myapp --long
 
 # Output as JSON
 execman list --json
@@ -127,12 +138,11 @@ execman [command] --help
 
 - `version` - Print the version number of execman
 - `install` - Install an executable from GitHub releases
-- `list` - List managed executables
+- `list` (alias: `ls`) - List managed executables with optional filtering and detailed view
 - `check` - Check for available updates
 - `update` - Update executables to latest versions
 - `remove` - Remove an executable and delete the file
 - `forget` - Stop tracking an executable but keep the file
-- `info` - Show information about an executable (TBD)
 - `adopt` - Adopt an existing executable (TBD)
 
 ## Configuration

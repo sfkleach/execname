@@ -126,8 +126,19 @@ Where:
 
 ```bash
 execman list
+execman ls
+execman list myapp
+execman list --long
+execman ls -l myapp
 execman list --json
 ```
+
+### Behavior
+
+- With no arguments: List all managed executables
+- With argument: Show details for specific executable
+- With `--long` / `-l`: Show detailed information including platform and checksum
+- `ls` alias: Shorthand for `list`
 
 ### Output Format (Text)
 
@@ -145,27 +156,45 @@ Managed executables:
 2 executables managed
 ```
 
-### Output Format (JSON)
+### Output Format (Text with --long)
 
-```json
-{
-  "executables": [
-    {
-      "name": "nutmeg-run",
-      "source": "https://github.com/sfkleach/nutmeg-run",
-      "version": "v1.2.3",
-      "path": "/home/user/.local/bin/nutmeg-run",
-      "installed_at": "2025-12-28T10:30:00Z"
-    }
-  ]
-}
+```
+Managed executables:
+
+  nutmeg-run      v1.2.3    ~/.local/bin/nutmeg-run
+                            github.com/sfkleach/nutmeg-run
+                            platform: linux/amd64
+                            checksum: sha256:abc123def456...
+                            installed 2025-12-28
+
+  pathman         v0.1.0    ~/.local/bin/pathman
+                            github.com/sfkleach/pathman
+                            platform: linux/amd64
+                            checksum: sha256:def789ghi012...
+                            installed 2025-12-20
+
+2 executables managed
+```
+
+### Output Format (Single executable with --long)
+
+```
+nutmeg-run
+
+  Source:       https://github.com/sfkleach/nutmeg-run
+  Version:      v1.2.3
+  Path:         /home/user/.local/bin/nutmeg-run
+  Platform:     linux/amd64
+  Installed:    2025-12-28T10:30:00Z
+  Checksum:     sha256:abc123def456...
 ```
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
-| `--json` | Output as JSON |
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--long` | `-l` | Show detailed information including platform and checksum |
+| `--json` | | Output as JSON |
 
 ## Part 4: Check Command
 
@@ -316,52 +345,7 @@ execman forget nutmeg-run --yes
 |--------|-------|-------------|
 | `--yes` | `-y` | Skip confirmation prompt |
 
-## Part 7: Info Command
-
-```bash
-execman info nutmeg-run
-execman info nutmeg-run --json
-```
-
-### Output Format (Text)
-
-```
-nutmeg-run
-
-  Source:       https://github.com/sfkleach/nutmeg-run
-  Version:      v1.2.3
-  Path:         /home/user/.local/bin/nutmeg-run
-  Platform:     linux/amd64
-  Installed:    2025-12-28T10:30:00Z
-  Checksum:     sha256:abc123def456...
-
-  Latest:       v1.3.0 (update available)
-```
-
-### Output Format (JSON)
-
-```json
-{
-  "name": "nutmeg-run",
-  "source": "https://github.com/sfkleach/nutmeg-run",
-  "version": "v1.2.3",
-  "path": "/home/user/.local/bin/nutmeg-run",
-  "platform": "linux/amd64",
-  "installed_at": "2025-12-28T10:30:00Z",
-  "checksum": "sha256:abc123def456...",
-  "latest_version": "v1.3.0",
-  "update_available": true
-}
-```
-
-### Options
-
-| Option | Description |
-|--------|-------------|
-| `--json` | Output as JSON |
-| `--include-prereleases` | Include prereleases when checking latest |
-
-## Part 8: Adopt Command
+## Part 7: Adopt Command
 
 For executables not installed via execman but that the user wants to manage:
 
@@ -404,7 +388,7 @@ And parsing common output formats:
 
 If detection fails, prompt user to provide version manually.
 
-## Part 9: Symlink Handling
+## Part 8: Symlink Handling
 
 When execman encounters a symlink (during update, remove, or adopt):
 
@@ -431,7 +415,7 @@ Error: /usr/local/bin/myapp is a symlink to /opt/myapp/v1.2.3/myapp
 
 Exit with non-zero status code.
 
-## Part 10: Version Command
+## Part 9: Version Command
 
 ```bash
 execman version

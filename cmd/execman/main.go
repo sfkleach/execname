@@ -64,15 +64,6 @@ var installCmd = &cobra.Command{
 	},
 }
 
-var infoCmd = &cobra.Command{
-	Use:   "info",
-	Short: "Show information about an executable (TBD)",
-	Long:  `Show information about an executable (TBD)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("info subcommand - TBD")
-	},
-}
-
 var adoptCmd = &cobra.Command{
 	Use:   "adopt",
 	Short: "Adopt an existing executable (TBD)",
@@ -92,7 +83,6 @@ func init() {
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(installCmd)
-	rootCmd.AddCommand(infoCmd)
 	rootCmd.AddCommand(list.NewListCommand())
 	rootCmd.AddCommand(check.NewCheckCommand())
 	rootCmd.AddCommand(update.NewUpdateCommand())

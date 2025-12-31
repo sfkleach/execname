@@ -24,28 +24,38 @@ type ExecutableInfo struct {
 	Source      string `json:"source"`
 	Version     string `json:"version"`
 	Path        string `json:"path"`
+	Platform    string `json:"platform,omitempty"`
+	Checksum    string `json:"checksum,omitempty"`
 	InstalledAt string `json:"installed_at"`
 }
 
 // NewListCommand creates the list command.
 func NewListCommand() *cobra.Command {
 	var jsonOutput bool
+	var longFormat bool
 
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List all managed executables",
-		Long:  "Display all executables managed by execman with their versions and locations.",
+		Use:     "list [executable]",
+		Aliases: []string{"ls"},
+		Short:   "List managed executables",
+		Long:    "Display executables managed by execman. Optionally filter by name.",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runList(jsonOutput)
+			var filterName string
+			if len(args) > 0 {
+				filterName = args[0]
+			}
+			return runList(filterName, jsonOutput, longFormat)
 		},
 	}
 
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output as JSON")
+	cmd.Flags().BoolVarP(&longFormat, "long", "l", false, "Show detailed information")
 
 	return cmd
 }
 
-func runList(jsonOutput bool) error {
+func runList(filterName string, jsonOutput bool, longFormat bool) error {
 	// Load registry.
 	reg, err := registry.Load()
 	if err != nil {
@@ -54,6 +64,21 @@ func runList(jsonOutput bool) error {
 
 	// Get all executable names.
 	names := reg.List()
+
+	// Filter by name if specified.
+	if filterName != "" {
+		found := false
+		for _, name := range names {
+			if name == filterName {
+				names = []string{filterName}
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("executable %q is not managed by execman", filterName)
+		}
+	}
 
 	if len(names) == 0 {
 		if jsonOutput {
@@ -70,13 +95,13 @@ func runList(jsonOutput bool) error {
 	sort.Strings(names)
 
 	if jsonOutput {
-		return outputJSON(reg, names)
+		return outputJSON(reg, names, longFormat)
 	}
 
-	return outputText(reg, names)
+	return outputText(reg, names, longFormat)
 }
 
-func outputJSON(reg *registry.Registry, names []string) error {
+func outputJSON(reg *registry.Registry, names []string, longFormat bool) error {
 	// Convert to output format.
 	executables := make([]ExecutableInfo, 0, len(names))
 	for _, name := range names {
@@ -85,13 +110,20 @@ func outputJSON(reg *registry.Registry, names []string) error {
 			continue
 		}
 
-		executables = append(executables, ExecutableInfo{
+		info := ExecutableInfo{
 			Name:        name,
 			Source:      exec.Source,
 			Version:     exec.Version,
 			Path:        exec.Path,
 			InstalledAt: exec.InstalledAt.Format(time.RFC3339),
-		})
+		}
+
+		if longFormat {
+			info.Platform = exec.Platform
+			info.Checksum = exec.Checksum
+		}
+
+		executables = append(executables, info)
 	}
 
 	output := ListOutput{Executables: executables}
@@ -101,11 +133,33 @@ func outputJSON(reg *registry.Registry, names []string) error {
 	return encoder.Encode(output)
 }
 
-func outputText(reg *registry.Registry, names []string) error {
-	fmt.Println("Managed executables:")
-	fmt.Println()
-
+func outputText(reg *registry.Registry, names []string, longFormat bool) error {
 	homeDir, _ := os.UserHomeDir()
+
+	// If showing a single executable in long format, use detailed view.
+	if len(names) == 1 && longFormat {
+		name := names[0]
+		exec, ok := reg.Get(name)
+		if !ok {
+			return fmt.Errorf("executable %q not found", name)
+		}
+
+		fmt.Printf("%s\n\n", name)
+		fmt.Printf("  Source:       %s\n", exec.Source)
+		fmt.Printf("  Version:      %s\n", exec.Version)
+		fmt.Printf("  Path:         %s\n", exec.Path)
+		fmt.Printf("  Platform:     %s\n", exec.Platform)
+		fmt.Printf("  Installed:    %s\n", exec.InstalledAt.Format(time.RFC3339))
+		fmt.Printf("  Checksum:     %s\n", exec.Checksum)
+
+		return nil
+	}
+
+	// Multiple executables or short format.
+	if len(names) > 1 || !longFormat {
+		fmt.Println("Managed executables:")
+		fmt.Println()
+	}
 
 	for _, name := range names {
 		exec, ok := reg.Get(name)
@@ -131,15 +185,23 @@ func outputText(reg *registry.Registry, names []string) error {
 		// Print formatted output.
 		fmt.Printf("  %-15s %-9s %s\n", execName, exec.Version, displayPath)
 		fmt.Printf("  %-15s %-9s %s\n", "", "", source)
+
+		if longFormat {
+			fmt.Printf("  %-15s %-9s platform: %s\n", "", "", exec.Platform)
+			fmt.Printf("  %-15s %-9s checksum: %s\n", "", "", exec.Checksum)
+		}
+
 		fmt.Printf("  %-15s %-9s installed %s\n", "", "", installedDate)
 		fmt.Println()
 	}
 
-	count := len(names)
-	if count == 1 {
-		fmt.Println("1 executable managed")
-	} else {
-		fmt.Printf("%d executables managed\n", count)
+	if len(names) > 1 {
+		count := len(names)
+		if count == 1 {
+			fmt.Println("1 executable managed")
+		} else {
+			fmt.Printf("%d executables managed\n", count)
+		}
 	}
 
 	return nil
