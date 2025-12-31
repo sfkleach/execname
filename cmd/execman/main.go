@@ -29,19 +29,13 @@ var rootCmd = &cobra.Command{
 	Long:  `Execman is a command-line tool for managing executables.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if versionFlag {
-			fmt.Println(version.GetVersion())
+			if err := version.ShowVersion(false); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
 		} else {
 			_ = cmd.Help()
 		}
-	},
-}
-
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print the version number of execman",
-	Long:  `All software has versions. This is execman's`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(version.GetVersion())
 	},
 }
 
@@ -81,7 +75,7 @@ func init() {
 	installCmd.Flags().BoolVarP(&installYes, "yes", "y", false, "Skip confirmation prompts")
 	installCmd.Flags().BoolVar(&installIncludePrereleases, "include-prereleases", false, "Allow installing prerelease versions")
 
-	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(version.NewVersionCommand())
 	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(list.NewListCommand())
 	rootCmd.AddCommand(check.NewCheckCommand())
