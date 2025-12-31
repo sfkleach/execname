@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/sfkleach/execman/pkg/check"
 	"github.com/sfkleach/execman/pkg/install"
 	"github.com/sfkleach/execman/pkg/list"
 	"github.com/sfkleach/execman/pkg/version"
@@ -69,15 +70,6 @@ var infoCmd = &cobra.Command{
 	},
 }
 
-var checkCmd = &cobra.Command{
-	Use:   "check",
-	Short: "Check executable status (TBD)",
-	Long:  `Check executable status (TBD)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("check subcommand - TBD")
-	},
-}
-
 var updateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Update an executable (TBD)",
@@ -117,7 +109,7 @@ func init() {
 	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(infoCmd)
 	rootCmd.AddCommand(list.NewListCommand())
-	rootCmd.AddCommand(checkCmd)
+	rootCmd.AddCommand(check.NewCheckCommand())
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(removeCmd)
 	rootCmd.AddCommand(adoptCmd)
