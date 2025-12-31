@@ -127,6 +127,12 @@ func updateOne(reg *registry.Registry, opts Options) (bool, error) {
 		return false, fmt.Errorf("executable %q is not managed by execman", opts.Name)
 	}
 
+	// Check if executable file exists.
+	executableMissing := false
+	if _, err := os.Stat(exec.Path); os.IsNotExist(err) {
+		executableMissing = true
+	}
+
 	// Parse source.
 	owner, repo, _, err := github.ParseSource(exec.Source)
 	if err != nil {
@@ -142,32 +148,74 @@ func updateOne(reg *registry.Registry, opts Options) (bool, error) {
 
 	latestVersion := release.TagName
 
-	// Check if update is needed.
-	if exec.Version == latestVersion {
-		fmt.Printf("%s is already up to date (%s).\n", opts.Name, exec.Version)
-		return false, nil
-	}
+	// Handle missing executable.
+	if executableMissing {
+		fmt.Printf("Executable file is MISSING at %s\n", exec.Path)
+		fmt.Printf("Recorded version:  %s\n", exec.Version)
+		fmt.Printf("Latest version:    %s\n", latestVersion)
+		fmt.Println()
 
-	// Show comparison.
-	fmt.Printf("Current version: %s\n", exec.Version)
-	fmt.Printf("Latest version:  %s\n", latestVersion)
-	fmt.Println()
+		if !opts.Yes {
+			if exec.Version == latestVersion {
+				fmt.Printf("Reinstall %s %s? [y/N]: ", opts.Name, exec.Version)
+			} else {
+				fmt.Printf("Install %s? [r]ecorded %s / [l]atest %s / [N]o: ", opts.Name, exec.Version, latestVersion)
+			}
+			reader := bufio.NewReader(os.Stdin)
+			response, _ := reader.ReadString('\n')
+			response = strings.ToLower(strings.TrimSpace(response))
 
-	// Confirm update.
-	if !opts.Yes {
-		fmt.Printf("Update %s to %s? [y/N]: ", opts.Name, latestVersion)
-		reader := bufio.NewReader(os.Stdin)
-		response, _ := reader.ReadString('\n')
-		response = strings.ToLower(strings.TrimSpace(response))
-		if response != "y" && response != "yes" {
-			fmt.Println("Update cancelled.")
+			if exec.Version == latestVersion {
+				if response != "y" && response != "yes" {
+					fmt.Println("Reinstall cancelled.")
+					return false, nil
+				}
+			} else {
+				switch response {
+				case "r", "recorded":
+					// Use recorded version - need to fetch that specific release.
+					release, err = github.GetRelease(owner, repo, exec.Version)
+					if err != nil {
+						return false, fmt.Errorf("failed to fetch recorded version %s: %w", exec.Version, err)
+					}
+					latestVersion = exec.Version
+				case "l", "latest":
+					// Use latest - already have it.
+				default:
+					fmt.Println("Reinstall cancelled.")
+					return false, nil
+				}
+			}
+		}
+		// Continue with installation using selected version.
+	} else {
+		// Normal update flow - check if update is needed.
+		if exec.Version == latestVersion {
+			fmt.Printf("%s is already up to date (%s).\n", opts.Name, exec.Version)
 			return false, nil
+		}
+
+		// Show comparison.
+		fmt.Printf("Current version: %s\n", exec.Version)
+		fmt.Printf("Latest version:  %s\n", latestVersion)
+		fmt.Println()
+
+		// Confirm update.
+		if !opts.Yes {
+			fmt.Printf("Update %s to %s? [y/N]: ", opts.Name, latestVersion)
+			reader := bufio.NewReader(os.Stdin)
+			response, _ := reader.ReadString('\n')
+			response = strings.ToLower(strings.TrimSpace(response))
+			if response != "y" && response != "yes" {
+				fmt.Println("Update cancelled.")
+				return false, nil
+			}
 		}
 	}
 
-	// Ask about backup.
+	// Ask about backup (only if file exists).
 	createBackup := false
-	if !opts.Yes {
+	if !executableMissing && !opts.Yes {
 		fmt.Print("Create backup of current executable? [y/N]: ")
 		reader := bufio.NewReader(os.Stdin)
 		response, _ := reader.ReadString('\n')

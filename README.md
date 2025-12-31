@@ -68,7 +68,7 @@ execman list --json
 ### Check for updates
 
 ```bash
-# Check all executables for updates
+# Check all executables for updates and integrity
 execman check
 
 # Check specific executable
@@ -76,6 +76,9 @@ execman check myapp
 
 # Show all executables including up-to-date ones
 execman check --no-skip
+
+# Verify checksums of installed executables
+execman check --verify
 
 # Output as JSON
 execman check --json
@@ -92,6 +95,9 @@ execman update --all
 
 # Skip confirmation prompts
 execman update --all --yes
+
+# Reinstall a missing executable
+execman update myapp  # Will detect missing file and offer reinstall
 ```
 
 ### Remove an executable
@@ -139,7 +145,7 @@ execman [command] --help
 - `version` - Print the version number of execman
 - `install` - Install an executable from GitHub releases
 - `list` (alias: `ls`) - List managed executables with optional filtering and detailed view
-- `check` - Check for available updates
+- `check` - Check for available updates and verify integrity
 - `update` - Update executables to latest versions
 - `remove` - Remove an executable and delete the file
 - `forget` - Stop tracking an executable but keep the file

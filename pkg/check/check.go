@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 
+	"github.com/sfkleach/execman/pkg/archive"
 	"github.com/sfkleach/execman/pkg/config"
 	"github.com/sfkleach/execman/pkg/github"
 	"github.com/sfkleach/execman/pkg/registry"
@@ -16,14 +17,17 @@ import (
 type CheckOutput struct {
 	Executables      []ExecutableStatus `json:"executables"`
 	UpdatesAvailable int                `json:"updates_available"`
+	Missing          int                `json:"missing"`
+	Modified         int                `json:"modified"`
 }
 
 // ExecutableStatus represents the update status of an executable.
 type ExecutableStatus struct {
 	Name            string `json:"name"`
 	CurrentVersion  string `json:"current_version"`
-	LatestVersion   string `json:"latest_version"`
+	LatestVersion   string `json:"latest_version,omitempty"`
 	UpdateAvailable bool   `json:"update_available"`
+	Status          string `json:"status"` // "ok", "missing", "modified"
 }
 
 // NewCheckCommand creates the check command.
@@ -31,29 +35,31 @@ func NewCheckCommand() *cobra.Command {
 	var jsonOutput bool
 	var includePrereleases bool
 	var noSkip bool
+	var verify bool
 
 	cmd := &cobra.Command{
 		Use:   "check [executable]",
-		Short: "Check for available updates",
-		Long:  "Check if updates are available for managed executables.",
+		Short: "Check for available updates and integrity",
+		Long:  "Check if updates are available for managed executables and verify file integrity.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var name string
 			if len(args) > 0 {
 				name = args[0]
 			}
-			return runCheck(name, jsonOutput, includePrereleases, noSkip)
+			return runCheck(name, jsonOutput, includePrereleases, noSkip, verify)
 		},
 	}
 
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output as JSON")
 	cmd.Flags().BoolVar(&includePrereleases, "include-prereleases", false, "Include prerelease versions in check")
 	cmd.Flags().BoolVar(&noSkip, "no-skip", false, "Show all executables, including up-to-date ones")
+	cmd.Flags().BoolVar(&verify, "verify", false, "Verify checksums of installed executables")
 
 	return cmd
 }
 
-func runCheck(name string, jsonOutput, includePrereleases, noSkip bool) error {
+func runCheck(name string, jsonOutput, includePrereleases, noSkip, verify bool) error {
 	// Load registry.
 	reg, err := registry.Load()
 	if err != nil {
@@ -105,10 +111,45 @@ func runCheck(name string, jsonOutput, includePrereleases, noSkip bool) error {
 	statuses := make([]ExecutableStatus, 0, len(names))
 	updatesAvailable := 0
 	upToDateCount := 0
+	missingCount := 0
+	modifiedCount := 0
 
 	for _, n := range names {
 		exec, ok := reg.Get(n)
 		if !ok {
+			continue
+		}
+
+		// Check file integrity first.
+		fileStatus := "ok"
+		if _, err := os.Stat(exec.Path); os.IsNotExist(err) {
+			fileStatus = "missing"
+			missingCount++
+		} else if verify {
+			// Verify checksum if requested.
+			actualChecksum, err := archive.CalculateChecksum(exec.Path)
+			if err == nil && actualChecksum != exec.Checksum {
+				fileStatus = "modified"
+				modifiedCount++
+			}
+		}
+
+		// If file is missing or modified, report that and skip update check.
+		if fileStatus != "ok" {
+			status := ExecutableStatus{
+				Name:           n,
+				CurrentVersion: exec.Version,
+				Status:         fileStatus,
+			}
+			statuses = append(statuses, status)
+
+			if !jsonOutput {
+				if fileStatus == "missing" {
+					fmt.Printf("  %-15s %-9s          MISSING\n", n, exec.Version)
+				} else {
+					fmt.Printf("  %-15s %-9s          MODIFIED\n", n, exec.Version)
+				}
+			}
 			continue
 		}
 
@@ -144,6 +185,7 @@ func runCheck(name string, jsonOutput, includePrereleases, noSkip bool) error {
 			CurrentVersion:  exec.Version,
 			LatestVersion:   latestVersion,
 			UpdateAvailable: updateAvailable,
+			Status:          "ok",
 		}
 		statuses = append(statuses, status)
 
@@ -160,6 +202,8 @@ func runCheck(name string, jsonOutput, includePrereleases, noSkip bool) error {
 		output := CheckOutput{
 			Executables:      statuses,
 			UpdatesAvailable: updatesAvailable,
+			Missing:          missingCount,
+			Modified:         modifiedCount,
 		}
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
@@ -168,17 +212,41 @@ func runCheck(name string, jsonOutput, includePrereleases, noSkip bool) error {
 
 	// Text summary.
 	fmt.Println()
-	if updatesAvailable == 0 {
-		fmt.Printf("%d up to date, 0 updates available.\n", upToDateCount)
+
+	// Build summary parts.
+	var parts []string
+	if missingCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d missing", missingCount))
+	}
+	if modifiedCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d modified", modifiedCount))
+	}
+	parts = append(parts, fmt.Sprintf("%d up to date", upToDateCount))
+	if updatesAvailable == 1 {
+		parts = append(parts, "1 update available")
 	} else {
-		fmt.Printf("%d up to date, %d update", upToDateCount, updatesAvailable)
-		if updatesAvailable == 1 {
-			fmt.Print(" available")
-		} else {
-			fmt.Print("s available")
-		}
-		fmt.Println(". Run 'execman update' to install updates.")
+		parts = append(parts, fmt.Sprintf("%d updates available", updatesAvailable))
+	}
+
+	fmt.Println(joinParts(parts) + ".")
+
+	if missingCount > 0 || modifiedCount > 0 {
+		fmt.Println("Run 'execman update <name>' to reinstall missing or modified executables.")
+	} else if updatesAvailable > 0 {
+		fmt.Println("Run 'execman update' to install updates.")
 	}
 
 	return nil
+}
+
+// joinParts joins parts with commas.
+func joinParts(parts []string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	result := parts[0]
+	for i := 1; i < len(parts); i++ {
+		result += ", " + parts[i]
+	}
+	return result
 }

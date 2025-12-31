@@ -203,14 +203,24 @@ execman check
 execman check nutmeg-run
 execman check --json
 execman check --no-skip
+execman check --verify
 ```
 
 ### Behavior
 
-- With no arguments: Check all managed executables for updates
-- With argument: Check specific executable for updates
-- By default: Only shows executables with updates available
+- With no arguments: Check all managed executables for updates and integrity
+- With argument: Check specific executable for updates and integrity
+- By default: Only shows executables with updates available or integrity issues
 - With `--no-skip`: Shows all executables including up-to-date ones
+- With `--verify`: Also verify checksums of installed executables (slower)
+
+### Integrity Checking
+
+The check command always verifies that executable files exist. With `--verify`,
+it also validates checksums to detect modified files.
+
+- **MISSING**: File does not exist at recorded path
+- **MODIFIED**: File exists but checksum doesn't match (requires `--verify`)
 
 ### Output Format (Text)
 
@@ -220,6 +230,19 @@ Checking for updates...
   nutmeg-run      v1.2.3 → v1.3.0    update available
 
 1 up to date, 1 update available. Run 'execman update' to install updates.
+```
+
+### Output Format (Text with missing executable)
+
+```
+Checking for updates...
+
+  nutmeg-run      v1.2.3             MISSING
+  pathman         v0.1.0             up to date
+
+1 missing, 1 up to date, 0 updates available.
+Run 'execman update <name>' to reinstall missing or modified executables.
+```
 ```
 
 ### Output Format (Text with --no-skip)
@@ -242,16 +265,20 @@ Checking for updates...
       "name": "nutmeg-run",
       "current_version": "v1.2.3",
       "latest_version": "v1.3.0",
-      "update_available": true
+      "update_available": true,
+      "status": "ok"
     },
     {
       "name": "pathman",
       "current_version": "v0.1.0",
       "latest_version": "v0.1.0",
-      "update_available": false
+      "update_available": false,
+      "status": "ok"
     }
   ],
-  "updates_available": 1
+  "updates_available": 1,
+  "missing": 0,
+  "modified": 0
 }
 ```
 
@@ -261,6 +288,7 @@ Checking for updates...
 |--------|-------------|
 | `--json` | Output as JSON |
 | `--no-skip` | Show all executables, including up-to-date ones |
+| `--verify` | Verify checksums of installed executables |
 | `--include-prereleases` | Include prerelease versions in check |
 
 ## Part 5: Update Command
@@ -273,11 +301,12 @@ execman update --all --yes
 
 ### Interactive Flow
 
-1. **Check for updates**: Query GitHub for latest version
-2. **Show comparison**: Display current vs latest version
-3. **Confirm update**: Ask if user wants to proceed
-4. **Backup prompt**: Ask if user wants to create backup
-5. **Download**: Download new version with progress bar
+1. **Check integrity**: Verify executable file exists
+2. **Check for updates**: Query GitHub for latest version
+3. **Show comparison**: Display current vs latest version
+4. **Confirm update**: Ask if user wants to proceed
+5. **Backup prompt**: Ask if user wants to create backup (if file exists)
+6. **Download**: Download new version with progress bar
 6. **Verify checksum**: Verify SHA256 against checksums.txt
 7. **Extract**: Extract binary to temporary location
 8. **Permission check**: Verify ability to replace existing executable
@@ -302,6 +331,29 @@ execman update --all --yes
 - **Checksum mismatch**: Abort, preserve download for debugging
 - **Permission denied**: Explain issue, suggest remediation
 - **Replacement failed**: Rollback if possible, preserve download
+
+### Missing Executable Handling
+
+When an executable file is missing but still tracked in the registry, the update
+command offers to reinstall it:
+
+```
+Executable file is MISSING at /home/user/.local/bin/myapp
+Recorded version:  v1.2.3
+Latest version:    v1.3.0
+
+Install myapp? [r]ecorded v1.2.3 / [l]atest v1.3.0 / [N]o:
+```
+
+If the recorded version matches the latest version, it simplifies to:
+
+```
+Executable file is MISSING at /home/user/.local/bin/myapp
+Recorded version:  v1.2.3
+Latest version:    v1.2.3
+
+Reinstall myapp v1.2.3? [y/N]:
+```
 
 ## Part 6: Remove and Forget Commands
 
@@ -345,50 +397,8 @@ execman forget nutmeg-run --yes
 |--------|-------|-------------|
 | `--yes` | `-y` | Skip confirmation prompt |
 
-## Part 7: Adopt Command
 
-For executables not installed via execman but that the user wants to manage:
-
-```bash
-execman adopt /usr/local/bin/pathman --source github.com/sfkleach/pathman
-execman adopt /usr/local/bin/pathman --source github.com/sfkleach/pathman --version v0.1.0
-```
-
-### Interactive Flow
-
-1. **Verify executable exists**: Check file exists and is executable
-2. **Confirm adoption**: Show details, ask to proceed
-3. **Detect version**: If `--version` not provided, try running
-   `executable --version` to detect current version
-4. **Compute checksum**: Calculate SHA256 of existing executable
-5. **Add to registry**: Create registry entry with all metadata
-6. **Report**: Show success message
-
-### Options
-
-| Option | Description |
-|--------|-------------|
-| `--source <url>` | GitHub repository URL (required) |
-| `--version <ver>` | Current version (optional, auto-detected if possible) |
-| `--yes` | Skip confirmation prompt |
-
-### Version Detection
-
-If `--version` is not provided, execman attempts to detect it by running:
-
-```bash
-/path/to/executable --version
-```
-
-And parsing common output formats:
-- `appname version v1.2.3`
-- `appname v1.2.3`
-- `v1.2.3`
-- `1.2.3`
-
-If detection fails, prompt user to provide version manually.
-
-## Part 8: Symlink Handling
+## Part 7: Symlink Handling
 
 When execman encounters a symlink (during update, remove, or adopt):
 
@@ -415,7 +425,7 @@ Error: /usr/local/bin/myapp is a symlink to /opt/myapp/v1.2.3/myapp
 
 Exit with non-zero status code.
 
-## Part 9: Version Command
+## Part 8: Version Command
 
 ```bash
 execman version
