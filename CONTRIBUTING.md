@@ -1,6 +1,6 @@
-# Contributing to Pathman
+# Contributing to Execman
 
-Thank you for your interest in contributing to Pathman! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to Execman! This document provides guidelines and instructions for contributing to the project.
 
 ## Development Setup
 
@@ -15,14 +15,14 @@ Thank you for your interest in contributing to Pathman! This document provides g
 1. Fork the repository on GitHub
 2. Clone your fork:
    ```bash
-   git clone https://github.com/YOUR-USERNAME/pathman.git
-   cd pathman
+   git clone https://github.com/YOUR-USERNAME/execman.git
+   cd execman
    ```
 3. Build the project:
    ```bash
    just build
    # or without just:
-   go build -o bin/pathman ./cmd/pathman
+   go build -o bin/execman ./cmd/execman
    ```
 4. Run tests:
    ```bash
@@ -34,12 +34,18 @@ Thank you for your interest in contributing to Pathman! This document provides g
 ### Project Structure
 
 ```
-pathman/
-├── cmd/pathman/            # Main entry point
+execman/
+├── cmd/execman/            # Main entry point
 ├── pkg/
-│   ├── commands/           # CLI command definitions
+│   ├── check/              # Check for updates
 │   ├── config/             # Configuration management
-│   └── folder/             # Core folder operations
+│   ├── forget/             # Forget executables
+│   ├── init/               # Initialize execman
+│   ├── install/            # Install executables
+│   ├── list/               # List installed executables
+│   ├── remove/             # Remove executables
+│   ├── update/             # Update executables
+│   └── version/            # Version information
 ├── docs/                   # Documentation
 └── .github/                # GitHub-specific files
 ```
@@ -171,9 +177,8 @@ Types:
 ### Reporting Bugs
 
 Include:
-- Pathman version (`pathman --version` or git commit)
+- Execman version (`execman --version` or git commit)
 - Operating system and version
-- Shell (bash/zsh/fish) and version
 - Steps to reproduce
 - Expected behavior vs actual behavior
 - Relevant error messages or logs
@@ -207,7 +212,7 @@ Equivalent commands:
 ```bash
 # Build
 mkdir -p bin
-go build -o bin/pathman ./cmd/pathman
+go build -o bin/execman ./cmd/execman
 
 # Test
 go test ./...
@@ -240,7 +245,7 @@ Instead, email security concerns to the project maintainer. Include:
 - Use appropriate file permissions (0755 for directories, 0644 for files)
 - Add `#nosec` comments with justifications for intentional security exceptions
 - Never trust data from configuration files without validation
-- Consider impact on PATH and shell security
+- Be careful with GitHub API tokens and credentials
 
 ## Getting Help
 
@@ -251,10 +256,10 @@ Instead, email security concerns to the project maintainer. Include:
 
 ## License
 
-By contributing to Pathman, you agree that your contributions will be licensed under the GNU General Public License v3.0 (GPL-3.0).
+By contributing to Execman, you agree that your contributions will be licensed under the MIT License.
 
 ## Recognition
 
 Contributors will be recognized in the project. Significant contributors may be added to a CONTRIBUTORS file.
 
-Thank you for helping make Pathman better!
+Thank you for helping make Execman better!
