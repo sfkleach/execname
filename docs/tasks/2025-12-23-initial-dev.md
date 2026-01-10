@@ -17,7 +17,6 @@ for command line parsing. The subcommands are:
 - check
 - update
 - remove
-- adopt
 
 Only implement the version subcommand, the other subcommands should be simple
 TBD stubs and will be elaborated in the next task. The usual help option 
