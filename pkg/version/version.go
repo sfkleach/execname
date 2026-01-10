@@ -25,23 +25,25 @@ type VersionOutput struct {
 // NewVersionCommand creates the version command.
 func NewVersionCommand() *cobra.Command {
 	var jsonOutput bool
+	var fullOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version number of execman",
 		Long:  "Display the version of execman and its source repository.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ShowVersion(jsonOutput)
+			return ShowVersion(jsonOutput, fullOutput)
 		},
 	}
 
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output as JSON")
+	cmd.Flags().BoolVar(&fullOutput, "full", false, "Show full version with build information")
 
 	return cmd
 }
 
 // ShowVersion displays version information.
-func ShowVersion(jsonOutput bool) error {
+func ShowVersion(jsonOutput bool, fullOutput bool) error {
 	if jsonOutput {
 		output := VersionOutput{
 			Version: GetVersion(),
@@ -52,7 +54,11 @@ func ShowVersion(jsonOutput bool) error {
 		return encoder.Encode(output)
 	}
 
-	fmt.Printf("execman version %s\n", GetVersion())
+	if fullOutput {
+		fmt.Printf("execman version %s\n", GetFullVersion())
+	} else {
+		fmt.Printf("execman version %s\n", GetVersion())
+	}
 	return nil
 }
 

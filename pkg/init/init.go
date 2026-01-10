@@ -38,22 +38,8 @@ then install execman itself from GitHub with proper metadata.`,
 
 // Run executes the init command.
 func Run(opts Options) error {
-	// Expand tilde if present.
-	folder := opts.Folder
-	if len(folder) > 0 && folder[0] == '~' {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get home directory: %w", err)
-		}
-		if len(folder) == 1 {
-			folder = homeDir
-		} else if folder[1] == '/' || folder[1] == os.PathSeparator {
-			folder = filepath.Join(homeDir, folder[2:])
-		}
-	}
-
 	// Get absolute path.
-	absFolder, err := filepath.Abs(folder)
+	absFolder, err := filepath.Abs(opts.Folder)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
@@ -102,6 +88,19 @@ func Run(opts Options) error {
 	fmt.Println("\n✓ Initialization complete!")
 	fmt.Printf("\nExecman is installed at %s/execman\n", absFolder)
 
+	// Remind user to delete bootstrap binary if running from elsewhere.
+	currentExe, err := os.Executable()
+	if err == nil {
+		currentExeAbs, err := filepath.Abs(currentExe)
+		if err == nil {
+			installedExe := filepath.Join(absFolder, "execman")
+			if currentExeAbs != installedExe {
+				fmt.Printf("\nNote: You ran execman from %s\n", currentExeAbs)
+				fmt.Println("You can now delete this bootstrap binary if you no longer need it.")
+			}
+		}
+	}
+
 	// Check if the folder is on PATH.
 	pathEnv := os.Getenv("PATH")
 	onPath := false
@@ -116,8 +115,16 @@ func Run(opts Options) error {
 		fmt.Printf("\nNote: %s is not on your $PATH.\n", absFolder)
 		fmt.Println("You can run execman using the full path:")
 		fmt.Printf("  %s/execman\n", absFolder)
-		fmt.Println("\nOr add it to your PATH by adding this line to your ~/.bashrc or ~/.profile:")
-		fmt.Printf("  export PATH=\"%s:$PATH\"\n", absFolder)
+
+		// Check if pathman is available.
+		_, pathmanErr := os.Stat(filepath.Join(absFolder, "pathman"))
+		if pathmanErr == nil {
+			fmt.Println("\nOr use pathman to add it to your PATH:")
+			fmt.Printf("  %s/pathman add %s\n", absFolder, absFolder)
+		} else {
+			fmt.Println("\nOr add it to your PATH by adding this line to your ~/.bashrc or ~/.profile:")
+			fmt.Printf("  export PATH=\"%s:$PATH\"\n", absFolder)
+		}
 	}
 
 	return nil

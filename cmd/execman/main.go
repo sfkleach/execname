@@ -30,7 +30,7 @@ var rootCmd = &cobra.Command{
 	Long:  `Execman is a command-line tool for managing executables.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if versionFlag {
-			if err := version.ShowVersion(false); err != nil {
+			if err := version.ShowVersion(false, false); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
@@ -59,15 +59,6 @@ var installCmd = &cobra.Command{
 	},
 }
 
-var adoptCmd = &cobra.Command{
-	Use:   "adopt",
-	Short: "Adopt an existing executable (TBD)",
-	Long:  `Adopt an existing executable (TBD)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("adopt subcommand - TBD")
-	},
-}
-
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&versionFlag, "version", false, "Print version information")
 
@@ -84,7 +75,6 @@ func init() {
 	rootCmd.AddCommand(update.NewUpdateCommand())
 	rootCmd.AddCommand(remove.NewRemoveCommand())
 	rootCmd.AddCommand(forget.NewForgetCommand())
-	rootCmd.AddCommand(adoptCmd)
 }
 
 func main() {

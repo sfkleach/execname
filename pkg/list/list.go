@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -68,12 +69,9 @@ func runList(filterName string, jsonOutput bool, longFormat bool) error {
 	// Filter by name if specified.
 	if filterName != "" {
 		found := false
-		for _, name := range names {
-			if name == filterName {
-				names = []string{filterName}
-				found = true
-				break
-			}
+		if slices.Contains(names, filterName) {
+			names = []string{filterName}
+			found = true
 		}
 		if !found {
 			return fmt.Errorf("executable %q is not managed by execman", filterName)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/sfkleach/execman/pkg/archive"
 	"github.com/sfkleach/execman/pkg/config"
@@ -193,7 +194,11 @@ func runCheck(name string, jsonOutput, includePrereleases, noSkip, verify bool) 
 			if updateAvailable {
 				fmt.Printf("  %-15s %s → %-9s update available\n", n, exec.Version, latestVersion)
 			} else if noSkip {
-				fmt.Printf("  %-15s %-9s          up to date\n", n, exec.Version)
+				if verify {
+					fmt.Printf("  %-15s %-9s          up to date (verified)\n", n, exec.Version)
+				} else {
+					fmt.Printf("  %-15s %-9s          up to date\n", n, exec.Version)
+				}
 			}
 		}
 	}
@@ -244,9 +249,11 @@ func joinParts(parts []string) string {
 	if len(parts) == 0 {
 		return ""
 	}
-	result := parts[0]
+	var sb strings.Builder
+	sb.WriteString(parts[0])
 	for i := 1; i < len(parts); i++ {
-		result += ", " + parts[i]
+		sb.WriteString(", ")
+		sb.WriteString(parts[i])
 	}
-	return result
+	return sb.String()
 }
