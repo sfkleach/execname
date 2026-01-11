@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/sfkleach/execman/pkg/registry"
@@ -93,14 +91,14 @@ func runList(filterName string, jsonOutput bool, longFormat bool) error {
 	sort.Strings(names)
 
 	if jsonOutput {
-		return outputJSON(reg, names, longFormat)
+		return outputJSON(reg, names)
 	}
 
 	return outputText(reg, names, longFormat)
 }
 
-func outputJSON(reg *registry.Registry, names []string, longFormat bool) error {
-	// Convert to output format.
+func outputJSON(reg *registry.Registry, names []string) error {
+	// Convert to output format. JSON always includes full details per spec.
 	executables := make([]ExecutableInfo, 0, len(names))
 	for _, name := range names {
 		exec, ok := reg.Get(name)
@@ -116,11 +114,6 @@ func outputJSON(reg *registry.Registry, names []string, longFormat bool) error {
 			InstalledAt: exec.InstalledAt.Format(time.RFC3339),
 		}
 
-		if longFormat {
-			info.Platform = exec.Platform
-			info.Checksum = exec.Checksum
-		}
-
 		executables = append(executables, info)
 	}
 
@@ -132,74 +125,42 @@ func outputJSON(reg *registry.Registry, names []string, longFormat bool) error {
 }
 
 func outputText(reg *registry.Registry, names []string, longFormat bool) error {
-	homeDir, _ := os.UserHomeDir()
-
-	// If showing a single executable in long format, use detailed view.
-	if len(names) == 1 && longFormat {
-		name := names[0]
-		exec, ok := reg.Get(name)
-		if !ok {
-			return fmt.Errorf("executable %q not found", name)
-		}
-
-		fmt.Printf("%s\n\n", name)
-		fmt.Printf("  Source:       %s\n", exec.Source)
-		fmt.Printf("  Version:      %s\n", exec.Version)
-		fmt.Printf("  Path:         %s\n", exec.Path)
-		fmt.Printf("  Platform:     %s\n", exec.Platform)
-		fmt.Printf("  Installed:    %s\n", exec.InstalledAt.Format(time.RFC3339))
-		fmt.Printf("  Checksum:     %s\n", exec.Checksum)
-
-		return nil
+	if longFormat {
+		return outputLongFormat(reg, names)
 	}
+	return outputCompactFormat(names)
+}
 
-	// Multiple executables or short format.
-	if len(names) > 1 || !longFormat {
-		fmt.Println("Managed executables:")
-		fmt.Println()
-	}
-
+// outputCompactFormat prints just the executable names, one per line.
+// No headers, no extra info - suitable for piping to other commands.
+func outputCompactFormat(names []string) error {
 	for _, name := range names {
+		fmt.Println(name)
+	}
+	return nil
+}
+
+// outputLongFormat prints detailed information with labeled key-value pairs.
+// Each executable is separated by a blank line.
+func outputLongFormat(reg *registry.Registry, names []string) error {
+	const labelWidth = 16 // Width for left-aligned labels including colon.
+
+	for i, name := range names {
 		exec, ok := reg.Get(name)
 		if !ok {
 			continue
 		}
 
-		// Display path with ~ for home directory.
-		displayPath := exec.Path
-		if homeDir != "" && strings.HasPrefix(exec.Path, homeDir) {
-			displayPath = "~" + strings.TrimPrefix(exec.Path, homeDir)
+		// Add blank line between entries (but not before first).
+		if i > 0 {
+			fmt.Println()
 		}
 
-		// Extract repo path from source URL.
-		source := strings.TrimPrefix(exec.Source, "https://")
-
-		// Format installed_at timestamp.
-		installedDate := exec.InstalledAt.Format("2006-01-02")
-
-		// Get just the executable name from the path.
-		execName := filepath.Base(exec.Path)
-
-		// Print formatted output.
-		fmt.Printf("  %-15s %-9s %s\n", execName, exec.Version, displayPath)
-		fmt.Printf("  %-15s %-9s %s\n", "", "", source)
-
-		if longFormat {
-			fmt.Printf("  %-15s %-9s platform: %s\n", "", "", exec.Platform)
-			fmt.Printf("  %-15s %-9s checksum: %s\n", "", "", exec.Checksum)
-		}
-
-		fmt.Printf("  %-15s %-9s installed %s\n", "", "", installedDate)
-		fmt.Println()
-	}
-
-	if len(names) > 1 {
-		count := len(names)
-		if count == 1 {
-			fmt.Println("1 executable managed")
-		} else {
-			fmt.Printf("%d executables managed\n", count)
-		}
+		fmt.Printf("%-*s%s\n", labelWidth, "Name:", name)
+		fmt.Printf("%-*s%s\n", labelWidth, "Source:", exec.Source)
+		fmt.Printf("%-*s%s\n", labelWidth, "Version:", exec.Version)
+		fmt.Printf("%-*s%s\n", labelWidth, "Path:", exec.Path)
+		fmt.Printf("%-*s%s\n", labelWidth, "Installed at:", exec.InstalledAt.Format(time.RFC3339))
 	}
 
 	return nil
